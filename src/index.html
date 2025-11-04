@@ -7,8 +7,8 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
         background: linear-gradient(160deg, #1f2937, #111827);
         color: #f9fafb;
       }
@@ -37,6 +37,12 @@
 
       .subtitle {
         color: #94a3b8;
+        margin-bottom: 1rem;
+      }
+
+      .encryption-status {
+        color: #86efac;
+        font-size: 0.9rem;
         margin-bottom: 2rem;
       }
 
@@ -214,8 +220,12 @@
     <main>
       <h1>Gestor de Palavras-passe</h1>
       <p class="subtitle">
-        Registe, edite e elimine credenciais com segurança numa interface moderna.
+        Registe, edite e elimine credenciais com segurança.
       </p>
+      <p class="encryption-status">
+        🔐 Armazenamento cifrado (AES-256-GCM)
+      </p>
+
       <form id="password-form">
         <input type="hidden" id="password-id" />
         <label>
@@ -255,8 +265,7 @@
     </main>
 
     <script type="module">
-      const { invoke } = window.__TAURI__.tauri;
-
+      import { invoke } from "https://esm.sh/@tauri-apps/api/core";
       const form = document.querySelector("#password-form");
       const passwordIdInput = document.querySelector("#password-id");
       const serviceInput = document.querySelector("#service");
@@ -284,7 +293,6 @@
 
         for (const entry of entries) {
           const row = document.createElement("tr");
-
           row.innerHTML = `
             <td data-label="Serviço">${entry.service}</td>
             <td data-label="Utilizador">${entry.username}</td>
@@ -296,15 +304,12 @@
               </div>
             </td>
           `;
-
           row
             .querySelector('[data-action="edit"]')
             .addEventListener("click", () => populateForm(entry));
-
           row
             .querySelector('[data-action="delete"]')
             .addEventListener("click", () => deleteEntry(entry.id));
-
           listElement.appendChild(row);
         }
       }
@@ -334,10 +339,7 @@
       }
 
       async function deleteEntry(id) {
-        if (!confirm("Tem a certeza de que deseja eliminar esta credencial?")) {
-          return;
-        }
-
+        if (!confirm("Tem a certeza de que deseja eliminar esta credencial?")) return;
         submitBtn.disabled = true;
         try {
           await invoke("delete_password", { id });
