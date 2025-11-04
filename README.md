@@ -102,7 +102,7 @@ As credenciais são guardadas num ficheiro `passwords.json` dentro da pasta de d
 
 Próximas funcionalidades planejadas:
 
-- [ ] 🔐 Criptografia AES para o ficheiro `passwords.json`
+- [x] 🔐 Criptografia AES para o ficheiro `passwords.json`
 - [ ] 🔑 Geração de senhas seguras com personalização
 - [ ] 🧍 Autenticação local (PIN / master password)
 - [ ] 🔍 Barra de pesquisa e filtragem de credenciais
