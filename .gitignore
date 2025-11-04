@@ -1,0 +1,24 @@
+# Node
+node_modules/
+package-lock.json
+
+# Rust
+src_tauri/target/
+src_tauri/Cargo.lock
+target/
+
+# Build outputs
+dist/
+build/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+.vs/
+
+# OS files
+.DS_Store
+Thumbs.db
