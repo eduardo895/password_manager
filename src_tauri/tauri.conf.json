@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/1",
+  "package": {
+    "productName": "Password Manager",
+    "version": "0.1.0"
+  },
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devPath": "../src",
+    "distDir": "../src"
+  },
+  "tauri": {
+    "windows": [
+      {
+        "title": "Password Manager",
+        "width": 960,
+        "height": 640,
+        "resizable": true
+      }
+    ],
+    "bundle": {
+      "identifier": "com.example.passwordmanager",
+      "active": false
+    }
+  }
+}

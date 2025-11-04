@@ -1,0 +1,27 @@
+[package]
+name = "password_manager"
+version = "0.1.0"
+edition = "2021"
+authors = ["Password Manager Contributors"]
+description = "Gestor de palavras-passe para desktop construído com Tauri"
+
+[build-dependencies]
+tauri-build = { version = "1", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+uuid = { version = "1", features = ["serde", "v4"] }
+
+
+tauri = { version = "1", features = ["dialog"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
