@@ -168,6 +168,49 @@
         min-height: 1.2rem;
       }
 
+      /* --- Ajustes da secção de geração de senha --- */
+      .password-section {
+        grid-column: 1 / -1;
+      }
+
+      .password-input-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .password-input-group input {
+        flex: 1;
+      }
+
+      .password-input-group button {
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border: none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+
+      .password-options {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 0.85rem;
+        margin-top: 6px;
+        margin-bottom: 16px;
+        color: #cbd5f5;
+      }
+
+      .password-options input[type="number"] {
+        width: 60px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        padding: 4px 6px;
+        color: inherit;
+      }
+
       @media (max-width: 600px) {
         main {
           padding: 28px 22px;
@@ -219,27 +262,43 @@
   <body>
     <main>
       <h1>Gestor de Palavras-passe</h1>
-      <p class="subtitle">
-        Registe, edite e elimine credenciais com segurança.
-      </p>
-      <p class="encryption-status">
-        🔐 Armazenamento cifrado (AES-256-GCM)
-      </p>
+      <p class="subtitle">Registe, edite e elimine credenciais com segurança.</p>
+      <p class="encryption-status">🔐 Armazenamento cifrado (AES-256-GCM)</p>
 
       <form id="password-form">
         <input type="hidden" id="password-id" />
+
         <label>
           Serviço
           <input id="service" placeholder="Ex: GitHub" required />
         </label>
+
         <label>
           Utilizador
           <input id="username" placeholder="Ex: maria.silva" required />
         </label>
-        <label>
-          Palavra-passe
-          <input id="password" placeholder="••••••" required />
-        </label>
+
+        <!-- 🔑 Seção de palavra-passe e geração -->
+        <div class="password-section">
+          <label>
+            Palavra-passe
+            <div class="password-input-group">
+              <input id="password" placeholder="••••••" required />
+              <button type="button" id="generate-btn" title="Gerar senha segura">
+                🎲
+              </button>
+            </div>
+          </label>
+
+          <div class="password-options">
+            <label><input type="checkbox" id="use-lowercase" checked /> Minúsculas</label>
+            <label><input type="checkbox" id="use-uppercase" checked /> Maiúsculas</label>
+            <label><input type="checkbox" id="use-numbers" checked /> Números</label>
+            <label><input type="checkbox" id="use-symbols" /> Símbolos</label>
+            <label>Tamanho: <input type="number" id="password-length" min="6" max="64" value="16" /></label>
+          </div>
+        </div>
+
         <div style="display: flex; align-items: flex-end">
           <button type="submit" id="submit-btn">Guardar credencial</button>
         </div>
@@ -266,6 +325,7 @@
 
     <script type="module">
       import { invoke } from "https://esm.sh/@tauri-apps/api/core";
+
       const form = document.querySelector("#password-form");
       const passwordIdInput = document.querySelector("#password-id");
       const serviceInput = document.querySelector("#service");
@@ -277,6 +337,30 @@
       const emptyState = document.querySelector("#empty-state");
 
       let isEditing = false;
+
+      // --- 🔑 Geração de senha segura ---
+      const generateBtn = document.querySelector("#generate-btn");
+      const useLowercase = document.querySelector("#use-lowercase");
+      const useUppercase = document.querySelector("#use-uppercase");
+      const useNumbers = document.querySelector("#use-numbers");
+      const useSymbols = document.querySelector("#use-symbols");
+      const passwordLength = document.querySelector("#password-length");
+
+      generateBtn.addEventListener("click", async () => {
+        try {
+          const password = await invoke("generate_password", {
+            length: parseInt(passwordLength.value),
+            useUppercase: useUppercase.checked,
+            useLowercase: useLowercase.checked,
+            useNumbers: useNumbers.checked,
+            useSymbols: useSymbols.checked,
+          });
+          passwordInput.value = password;
+          showFeedback("Senha segura gerada!");
+        } catch (error) {
+          showFeedback(`Erro ao gerar senha: ${error}`, true);
+        }
+      });
 
       async function refreshList() {
         try {
@@ -290,7 +374,6 @@
       function renderEntries(entries) {
         listElement.innerHTML = "";
         emptyState.hidden = entries.length !== 0;
-
         for (const entry of entries) {
           const row = document.createElement("tr");
           row.innerHTML = `
@@ -333,9 +416,7 @@
       function showFeedback(message, isError = false) {
         feedback.textContent = message;
         feedback.style.color = isError ? "#f87171" : "#86efac";
-        setTimeout(() => {
-          feedback.textContent = "";
-        }, 3500);
+        setTimeout(() => (feedback.textContent = ""), 3500);
       }
 
       async function deleteEntry(id) {
@@ -354,20 +435,16 @@
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
-
         const payload = {
           service: serviceInput.value.trim(),
           username: usernameInput.value.trim(),
           password: passwordInput.value.trim(),
         };
-
         if (!payload.service || !payload.username || !payload.password) {
           showFeedback("Preencha todos os campos", true);
           return;
         }
-
         submitBtn.disabled = true;
-
         try {
           if (isEditing) {
             await invoke("update_password", {
@@ -379,7 +456,6 @@
             await invoke("add_password", payload);
             showFeedback("Credencial registada com sucesso!");
           }
-
           resetForm();
           await refreshList();
         } catch (error) {

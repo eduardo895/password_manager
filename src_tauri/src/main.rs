@@ -247,6 +247,47 @@ async fn delete_password(store: State<'_, Store>, id: Uuid) -> Result<(), String
     store.save().map_err(|err| err.to_string())
 }
 
+#[tauri::command]
+async fn generate_password(
+    length: usize,
+    use_uppercase: bool,
+    use_lowercase: bool,
+    use_numbers: bool,
+    use_symbols: bool,
+) -> Result<String, String> {
+    use rand::Rng;
+
+    let mut charset = String::new();
+
+    if use_lowercase {
+        charset.push_str("abcdefghijklmnopqrstuvwxyz");
+    }
+    if use_uppercase {
+        charset.push_str("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+    }
+    if use_numbers {
+        charset.push_str("0123456789");
+    }
+    if use_symbols {
+        charset.push_str("!@#$%^&*()-_=+[]{};:,.<>?");
+    }
+
+    if charset.is_empty() {
+        return Err("Nenhum tipo de caractere selecionado".to_string());
+    }
+
+    let mut rng = rand::thread_rng();
+    let password: String = (0..length)
+        .map(|_| {
+            let idx = rng.gen_range(0..charset.len());
+            charset.chars().nth(idx).unwrap()
+        })
+        .collect();
+
+    Ok(password)
+}
+
+
 // ---------------------------
 // 🚀 PONTO DE ENTRADA
 // ---------------------------
@@ -267,7 +308,8 @@ fn main() {
             list_passwords,
             add_password,
             update_password,
-            delete_password
+            delete_password,
+            generate_password
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar aplicação");
