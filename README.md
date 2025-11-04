@@ -55,7 +55,7 @@ password_manager/
 
 ---
 
-## 🚀 Executando em modo desenvolvimento
+## 🚀 Executar em modo desenvolvimento
 
 1. Instale as dependências Rust e JavaScript mencionadas nos pré-requisitos.
 2. No diretório raiz do projeto, execute:
@@ -113,10 +113,10 @@ Próximas funcionalidades planejadas:
 
 ---
 
-## 🤝 Contribuindo
+## 🤝 Contribuir
 
 1. Faça um fork do repositório  
-2. Crie uma branch para sua funcionalidade:  
+2. Crie uma branch para a sua funcionalidade:  
    ```bash
    git checkout -b minha-feature
    ```
