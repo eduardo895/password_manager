@@ -35,9 +35,11 @@
       }
 
       #auth-message {
-        color: #94a3b8;
-        font-size: 0.95rem;
-      }
+      color: #94a3b8;
+      font-size: 0.95rem;
+      min-height: 1.2rem;
+      transition: color 0.2s ease;
+    }
 
       #auth-screen input {
         width: 240px;
@@ -159,28 +161,25 @@
       }
 
       #generate-btn {
-      width: 48px;
-      height: 48px;
-      font-size: 1.6rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 10px;
-      border: none;
-      cursor: pointer;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-      transition: transform 0.15s ease, box-shadow 0.15s ease;
-    }
+        width: 48px;
+        height: 48px;
+        font-size: 1.6rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
 
-    #generate-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
-    }
-
-
-
+      #generate-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+      }
 
       .password-options {
         grid-column: 1 / -1;
@@ -388,9 +387,6 @@
         background: rgba(148, 163, 184, 0.24);
         transform: translateY(-1px);
       }
-
-
-
     </style>
   </head>
   <body>
@@ -408,10 +404,20 @@
       <p class="subtitle">Registe, edite e elimine credenciais com segurança.</p>
       <p class="encryption-status">🔐 Armazenamento cifrado (AES-256-GCM)</p>
 
+      <!-- 📤 Exportação -->
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin:-8px 0 16px 0;">
+        <button id="export-json" class="ghost-button">📤 Exportar JSON</button>
+        <button id="export-csv" class="ghost-button">📤 Exportar CSV</button>
+      </div>
+
       <form id="password-form">
         <input type="hidden" id="password-id" />
         <label>Serviço <input id="service" placeholder="Ex: GitHub" required /></label>
         <label>Utilizador <input id="username" placeholder="Ex: maria.silva" required /></label>
+        <label>Etiquetas / Categorias
+          <input id="tags" placeholder="Ex: trabalho, email, banco" />
+        </label>
+
         <label>Palavra-passe
           <div class="password-input-group">
             <input id="password" placeholder="••••••" required />
@@ -434,14 +440,12 @@
         <input
           type="text"
           id="search-input"
-          placeholder="🔍 Procurar credenciais (serviço ou utilizador)..."
+          placeholder="🔍 Procurar credenciais (serviço, utilizador ou tags)..."
           style="flex:1;padding:10px 14px;border-radius:12px;border:1px solid rgba(148,163,184,0.25);
                 background:rgba(15,23,42,0.8);color:#f9fafb;outline:none;margin-right:8px;"
         />
         <button id="clear-search" class="ghost-button" style="padding:10px 16px;">Limpar</button>
       </div>
-
-
 
       <div class="feedback" id="feedback"></div>
       <table>
@@ -450,6 +454,9 @@
             <th>Serviço</th>
             <th>Utilizador</th>
             <th>Palavra-passe</th>
+            <th>Tags</th>
+            <th>Criado</th>
+            <th>Atualizado</th>
             <th>Ações</th>
           </tr>
         </thead>
@@ -473,36 +480,93 @@
     </main>
 
     <script type="module">
+
+      // --- Toast helper ---
+    function showToast(message, type = "success") {
+      const container = document.querySelector("#toast-container");
+      const toast = document.createElement("div");
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    // substitui showFeedback() por esta versão
+    function showFeedback(msg, err = false) {
+      showToast(msg, err ? "error" : "success");
+    }
+
       import { invoke } from "https://esm.sh/@tauri-apps/api/core";
       const authScreen = document.querySelector("#auth-screen");
       const mainScreen = document.querySelector("main");
+      // 🔒 Bloqueio automático por inatividade
+      const INACTIVITY_TIMEOUT_MINUTES = 3; // ⏱️ tempo configurável
+      let inactivityTimer = null;
+      let warningTimer = null;
+      function resetInactivityTimer() {
+        clearTimeout(inactivityTimer);
+        clearTimeout(warningTimer);
+
+        warningTimer = setTimeout(() => {
+          showFeedback("⚠️ Inatividade detectada — sessão será bloqueada em 30s.");
+        }, (INACTIVITY_TIMEOUT_MINUTES * 60 - 30) * 1000);
+
+        inactivityTimer = setTimeout(lockApp, INACTIVITY_TIMEOUT_MINUTES * 60 * 1000);
+      }
+
+      // Função que bloqueia o app
+      function lockApp() {
+        mainScreen.style.display = "none";
+        authScreen.style.display = "flex";
+        masterInput.value = "";
+        authMsg.textContent = "Sessão bloqueada por inatividade ⏱️";
+        authMsg.style.color = "#facc15";
+        showFeedback("Sessão bloqueada automaticamente");
+      }
+
+      // Monitorar atividade do utilizador
+      ["mousemove", "keydown", "click"].forEach((event) => {
+        document.addEventListener(event, resetInactivityTimer);
+      });
+
       const authButton = document.querySelector("#auth-button");
       const masterInput = document.querySelector("#master-password");
       const authMsg = document.querySelector("#auth-message");
 
       authButton.addEventListener("click", async () => {
         const master = masterInput.value.trim();
-        if (!master) return;
+        if (!master) {
+          authMsg.textContent = "❌ Introduza uma password";
+          authMsg.style.color = "#f87171";
+          return;
+        }
+        
         try {
-          const exists = await invoke("verify_master_password", { password: master });
-          if (!exists) {
-            await invoke("set_master_password", { password: master });
-            alert("Master password criada com sucesso!");
+          const isValid = await invoke("verify_master_password", { password: master });
+          
+          if (isValid) {
+            await invoke("load_store", { master });
+            authScreen.style.display = "none";
+            resetInactivityTimer();
+            mainScreen.style.display = "block";
+            await refreshList();
+            showFeedback("Sessão iniciada com sucesso!");
+          } else {
+            authMsg.textContent = "❌ Master password incorreta";
+            authMsg.style.color = "#f87171";
           }
-          await invoke("load_store", { master });
-          authScreen.style.display = "none";
-          mainScreen.style.display = "block";
-          await refreshList();
-        } catch {
-          authMsg.textContent = "❌ Master password incorreta";
+        } catch (err) {
+          console.error("Erro na autenticação:", err);
+          authMsg.textContent = "❌ Erro na autenticação";
           authMsg.style.color = "#f87171";
         }
       });
-
+      // ======= App =======
       const form = document.querySelector("#password-form");
       const serviceInput = document.querySelector("#service");
       const usernameInput = document.querySelector("#username");
       const passwordInput = document.querySelector("#password");
+      const tagsInput = document.querySelector("#tags");
       const listElement = document.querySelector("#password-list");
       const feedback = document.querySelector("#feedback");
       const generateBtn = document.querySelector("#generate-btn");
@@ -511,7 +575,10 @@
       const useNumbers = document.querySelector("#use-numbers");
       const useSymbols = document.querySelector("#use-symbols");
       const passwordLength = document.querySelector("#password-length");
+      const exportJsonBtn = document.querySelector("#export-json");
+      const exportCsvBtn = document.querySelector("#export-csv");
 
+      // gerar password
       generateBtn.addEventListener("click", async () => {
         try {
           const password = await invoke("generate_password", {
@@ -528,120 +595,180 @@
         }
       });
 
-      window.editEntry = (id) => {
-      const entry = Array.from(document.querySelectorAll("#password-list tr"))
-        .map((row) => {
-          const cells = row.querySelectorAll("td");
-          return {
-            id,
-            service: cells[0].textContent,
-            username: cells[1].textContent,
-            password: cells[2].textContent,
-          };
-        })
-        .find((e) => e.id === id);
-
-      if (!entry) return;
-
-      document.querySelector("#service").value = entry.service;
-      document.querySelector("#username").value = entry.username;
-      document.querySelector("#password").value = entry.password;
-      document.querySelector("#password-id").value = entry.id;
-      document.querySelector("#submit-btn").textContent = "Atualizar credencial";
-      form.dataset.editing = "true";
-    };
-
-
-      form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const payload = {
-        service: serviceInput.value.trim(),
-        username: usernameInput.value.trim(),
-        password: passwordInput.value.trim(),
-      };
-
-      if (form.dataset.editing === "true") {
-        await invoke("update_password", {
-          id: document.querySelector("#password-id").value,
-          ...payload,
-        });
-        showFeedback("Credencial atualizada!");
-        form.dataset.editing = "false";
-        document.querySelector("#submit-btn").textContent = "Guardar credencial";
-      } else {
-        await invoke("add_password", payload);
-        showFeedback("Credencial registada!");
-      }
-
-      form.reset();
-      await refreshList();
-    });
-
-
+      // manter a lista carregada em memória para editar corretamente
       let allEntries = [];
 
-      async function refreshList(filter = "") {
-        allEntries = await invoke("list_passwords").catch(() => []);
+      // Delegação de eventos na tabela (edit / delete / toggle / copy)
+        listElement.addEventListener("click", async (ev) => {
+          const btn = ev.target.closest("button");
+          if (!btn) return;
+          const row = btn.closest("tr");
+          const id = row?.dataset.id;
+          const action = btn.dataset.action;
 
-        const filtered = allEntries.filter((e) => {
-          const q = filter.toLowerCase();
-          return (
-            e.service.toLowerCase().includes(q) ||
-            e.username.toLowerCase().includes(q)
-          );
+          if (action === "edit") {
+            const entry = allEntries.find((e) => e.id === id);
+            if (!entry) return;
+            serviceInput.value = entry.service;
+            usernameInput.value = entry.username;
+            passwordInput.value = entry.password;
+            tagsInput.value = entry.tags || "";
+            document.querySelector("#password-id").value = entry.id;
+            document.querySelector("#submit-btn").textContent = "Atualizar credencial";
+            form.dataset.editing = "true";
+          }
+
+          if (action === "delete") {
+            const confirmed = await showConfirm("Eliminar esta credencial?");
+            if (!confirmed) return;
+            try {
+              await invoke("delete_password", { id });
+              showFeedback("Credencial eliminada!");
+              
+              // Pequeno delay para garantir que o store foi atualizado
+              await new Promise(resolve => setTimeout(resolve, 100));
+              await refreshList(searchInput.value.trim());
+              
+            } catch (err) {
+              console.error("Erro ao eliminar:", err);
+              showFeedback("Erro ao eliminar credencial", true);
+            }
+          }
+
+          if (action === "toggle") {
+            const cell = btn.closest(".password-cell");
+            const hidden = cell.querySelector(".hidden-password");
+            const real = cell.querySelector(".real-password");
+            const showing = real.style.display === "inline";
+            real.style.display = showing ? "none" : "inline";
+            hidden.style.display = showing ? "inline" : "none";
+            btn.textContent = showing ? "👁️" : "🙈";
+          }
+
+          if (action === "copy") {
+            const pwd = btn.dataset.password || "";
+            try {
+              await navigator.clipboard.writeText(pwd);
+              const original = btn.textContent;
+              btn.textContent = "✅";
+              btn.style.color = "#86efac";
+              setTimeout(() => { btn.textContent = original; btn.style.color = ""; }, 1500);
+              showFeedback("Palavra-passe copiada!");
+            } catch (err) {
+              console.error("Erro ao copiar:", err);
+              showFeedback("Erro ao copiar", true);
+            }
+          }
         });
 
-        listElement.innerHTML = filtered
-          .map(
-            (e) => `
-          <tr>
-            <td>${e.service}</td>
-            <td>${e.username}</td>
-            <td>
+
+      // SUBMIT
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = {
+    service: serviceInput.value.trim(),
+    username: usernameInput.value.trim(),
+    password: passwordInput.value.trim(),
+    tags: tagsInput.value.trim() || null, 
+  };
+
+  try {
+    if (form.dataset.editing === "true") {
+      await invoke("update_password", {
+        id: document.querySelector("#password-id").value,
+        service: payload.service,
+        username: payload.username,
+        password: payload.password,
+        tags: payload.tags,
+      });
+      showFeedback("Credencial atualizada!");
+      form.dataset.editing = "false";
+      document.querySelector("#submit-btn").textContent = "Guardar credencial";
+    } else {
+      await invoke("add_password", {
+        service: payload.service,
+        username: payload.username,
+        password: payload.password,
+        tags: payload.tags,
+      });
+      showFeedback("Credencial registada!");
+    }
+
+    form.reset();
+    
+    // Pequeno delay para garantir que o store foi atualizado
+    await new Promise(resolve => setTimeout(resolve, 100));
+    await refreshList(searchInput.value.trim());
+    
+  } catch (err) {
+    console.error("Erro ao guardar credencial:", err);
+    showFeedback("Erro ao guardar credencial", true);
+  }
+});
+      // LISTAGEM
+async function refreshList(filter = "") {
+  try {
+    // Se não for passado filter, usa o valor atual da pesquisa
+    const currentFilter = filter === "" ? (searchInput?.value.trim() || "") : filter;
+    
+    allEntries = await invoke("list_passwords");
+    
+    const filtered = allEntries.filter((e) => {
+      const q = currentFilter.toLowerCase();
+      return (
+        e.service.toLowerCase().includes(q) ||
+        e.username.toLowerCase().includes(q) ||
+        (e.tags && e.tags.toLowerCase().includes(q))
+      );
+    });
+
+    function formatDate(iso) {
+      if (!iso) return "-";
+      const d = new Date(iso);
+      return d.toLocaleString("pt-PT", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    }
+
+
+    listElement.innerHTML = filtered
+      .map(
+        (e) => `
+        <tr data-id="${e.id}">
+          <td>${e.service}</td>
+          <td>${e.username}</td>
+          <td>
             <div class="password-cell">
               <span class="hidden-password">••••••••</span>
               <span class="real-password" style="display:none;">${e.password}</span>
-              <button class="ghost-button icon-btn" onclick="togglePassword(this)" title="Mostrar/Ocultar">👁️</button>
-              <button class="ghost-button icon-btn" onclick="copyPassword('${e.password}', this)" title="Copiar">📋</button>
+              <button type="button" class="ghost-button icon-btn" data-action="toggle">👁️</button>
+              <button type="button" class="ghost-button icon-btn" data-action="copy" data-password="${e.password}">📋</button>
             </div>
-            </td>
-            <td>
-              <div class="actions">
-                <button class="ghost-button" onclick="editEntry('${e.id}')">Editar</button>
-                <button class="ghost-button danger" onclick="deleteEntry('${e.id}')">Eliminar</button>
-              </div>
-            </td>
-          </tr>`
-          )
-          .join("");
+          </td>
+          <td>${e.tags || "-"}</td>
+          <td>${formatDate(e.created_at)}</td>
+          <td>${formatDate(e.updated_at)}</td>
+          <td>
+            <div class="actions">
+              <button type="button" class="ghost-button" data-action="edit">Editar</button>
+              <button type="button" class="ghost-button danger" data-action="delete">Eliminar</button>
+            </div>
+          </td>
+        </tr>`
+      )
+      .join("");
 
-        document.querySelector("#empty-state").hidden = filtered.length > 0;
-      }
+    document.querySelector("#empty-state").hidden = filtered.length > 0;
+  } catch (err) {
+    console.error("Erro ao atualizar lista:", err);
+    showFeedback("Erro ao carregar lista", true);
+  }
+}
 
-
-      window.deleteEntry = async (id) => {
-        if (!confirm("Eliminar esta credencial?")) return;
-        await invoke("delete_password", { id });
-        await refreshList();
-      };
-
-      function showFeedback(msg, err = false) {
-        feedback.textContent = msg;
-        feedback.style.color = err ? "#f87171" : "#86efac";
-        setTimeout(() => (feedback.textContent = ""), 3000);
-      }
-
-      const searchInput = document.querySelector("#search-input");
-      const clearSearch = document.querySelector("#clear-search");
-
-      searchInput.addEventListener("input", () => {
-        refreshList(searchInput.value.trim());
-      });
-
-      clearSearch.addEventListener("click", () => {
-        searchInput.value = "";
-        refreshList();
-      });
 
       // === Modal de confirmação (Promise-based) ===
       function showConfirm(message = "Eliminar esta credencial?") {
@@ -685,51 +812,96 @@
         });
       }
 
-      window.deleteEntry = async (id) => {
-        const confirmed = await showConfirm("Eliminar esta credencial?");
-        if (!confirmed) return;
-        try {
-          await invoke("delete_password", { id });
-          showFeedback("Credencial eliminada!");
-          await refreshList(searchInput ? searchInput.value.trim() : "");
-        } catch {
-          showFeedback("Erro ao eliminar credencial", true);
-        }
-      };
+      // Exportação cifrada
+      document.querySelector("#export-json").addEventListener("click", async () => {
+      try {
+        const path = await invoke("export_encrypted", {
+          format: "json", // ✅ corresponde ao argumento "format" no Rust
+          fileName: null,
+        });
+        showFeedback(`📤 Exportado: ${path}`);
+      } catch (err) {
+        console.error("Erro ao exportar JSON:", err);
+        showFeedback("Erro ao exportar JSON", true);
+      }
+    });
 
-      window.togglePassword = (btn) => {
-        const cell = btn.closest(".password-cell");
-        const hidden = cell.querySelector(".hidden-password");
-        const real = cell.querySelector(".real-password");
+    document.querySelector("#export-csv").addEventListener("click", async () => {
+      try {
+        const path = await invoke("export_encrypted", {
+          format: "csv",
+          fileName: null,
+        });
+        showFeedback(`📤 Exportado: ${path}`);
+      } catch (err) {
+        console.error("Erro ao exportar CSV:", err);
+        showFeedback("Erro ao exportar CSV", true);
+      }
+    });
 
-        const showing = real.style.display === "inline";
-        if (showing) {
-          real.style.display = "none";
-          hidden.style.display = "inline";
-          btn.textContent = "👁️";
-        } else {
-          real.style.display = "inline";
-          hidden.style.display = "none";
-          btn.textContent = "🙈";
-        }
-      };
 
-      window.copyPassword = async (password, btn) => {
-        try {
-          await navigator.clipboard.writeText(password);
-          const original = btn.textContent;
-          btn.textContent = "✅";
-          btn.style.color = "#86efac";
-          setTimeout(() => {
-            btn.textContent = original;
-            btn.style.color = "";
-          }, 1500);
-          showFeedback("Palavra-passe copiada!");
-        } catch {
-          showFeedback("Erro ao copiar", true);
-        }
-      };
+      // Pesquisa
+      const searchInput = document.querySelector("#search-input");
+      const clearSearch = document.querySelector("#clear-search");
 
+      searchInput.addEventListener("input", () => {
+        refreshList(searchInput.value.trim());
+      });
+
+      clearSearch.addEventListener("click", () => {
+        searchInput.value = "";
+        refreshList();
+      });
     </script>
+
+    <!-- 🔔 Toast container -->
+<div id="toast-container"></div>
+
+<style>
+  #toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 2000;
+  }
+
+  .toast {
+    background: rgba(30, 41, 59, 0.95);
+    color: #e2e8f0;
+    padding: 12px 18px;
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideIn 0.3s ease, fadeOut 0.5s ease 3s forwards;
+  }
+
+  .toast.success {
+    border-left: 4px solid #22c55e;
+  }
+
+  .toast.error {
+    border-left: 4px solid #ef4444;
+  }
+
+  .toast.info {
+    border-left: 4px solid #3b82f6;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes fadeOut {
+    to { opacity: 0; transform: translateX(100%); }
+  }
+</style>
+
   </body>
 </html>

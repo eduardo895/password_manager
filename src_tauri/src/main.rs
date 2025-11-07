@@ -1,6 +1,7 @@
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
 use std::{fs, path::PathBuf};
+
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -10,8 +11,9 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use rand::{rngs::OsRng, RngCore, Rng};
 use base64::{engine::general_purpose, Engine as _};
+use chrono::Utc;
+use rand::{rngs::OsRng, Rng, RngCore};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use thiserror::Error;
@@ -40,15 +42,22 @@ pub struct PasswordEntry {
     pub service: String,
     pub username: String,
     pub password: String,
+    pub tags: Option<String>,        // 🏷️
+    pub created_at: String,          // 📅
+    pub updated_at: String,          // 📅
 }
 
 impl PasswordEntry {
-    fn new(service: String, username: String, password: String) -> Self {
+    fn new(service: String, username: String, password: String, tags: Option<String>) -> Self {
+        let now = now_iso();
         Self {
             id: Uuid::new_v4(),
             service,
             username,
             password,
+            tags,
+            created_at: now.clone(),
+            updated_at: now,
         }
     }
 }
@@ -84,6 +93,7 @@ fn encrypt(data: &str, passphrase: &str) -> Result<String> {
         .encrypt(nonce, data.as_bytes())
         .map_err(|e| anyhow!(e.to_string()))?;
 
+    // limpar chave derivada da stack
     let mut key_mut = key;
     key_mut.zeroize();
 
@@ -119,6 +129,10 @@ fn decrypt(serialized: &str, passphrase: &str) -> Result<String> {
     Ok(String::from_utf8(plaintext)?)
 }
 // -------------------------------------------------
+
+fn now_iso() -> String {
+    Utc::now().to_rfc3339()
+}
 
 impl PasswordStore {
     fn load(handle: &tauri::AppHandle, master: &str) -> Result<Self, PasswordError> {
@@ -162,8 +176,8 @@ impl PasswordStore {
         self.entries.clone()
     }
 
-    fn add(&mut self, service: String, username: String, password: String) -> PasswordEntry {
-        let entry = PasswordEntry::new(service, username, password);
+    fn add(&mut self, service: String, username: String, password: String, tags: Option<String>) -> PasswordEntry {
+        let entry = PasswordEntry::new(service, username, password, tags);
         self.entries.push(entry.clone());
         entry
     }
@@ -174,6 +188,7 @@ impl PasswordStore {
         service: String,
         username: String,
         password: String,
+        tags: Option<String>,
     ) -> Result<PasswordEntry, PasswordError> {
         let entry = self
             .entries
@@ -184,6 +199,8 @@ impl PasswordStore {
         entry.service = service;
         entry.username = username;
         entry.password = password;
+        entry.tags = tags;
+        entry.updated_at = now_iso();
 
         Ok(entry.clone())
     }
@@ -224,10 +241,11 @@ async fn add_password(
     service: String,
     username: String,
     password: String,
+    tags: Option<String>,                 // 🏷️
 ) -> Result<PasswordEntry, String> {
     let mut store = store.0.lock().await;
     let s = store.as_mut().ok_or("Store não carregado")?;
-    let entry = s.add(service, username, password);
+    let entry = s.add(service, username, password, tags);
     s.save().map(|_| entry).map_err(|err| err.to_string())
 }
 
@@ -238,21 +256,98 @@ async fn update_password(
     service: String,
     username: String,
     password: String,
+    tags: Option<String>,                 // 🏷️
 ) -> Result<PasswordEntry, String> {
     let mut store = store.0.lock().await;
     let s = store.as_mut().ok_or("Store não carregado")?;
     let entry = s
-        .update(id, service, username, password)
+        .update(id, service, username, password, tags)
         .map_err(|err| err.to_string())?;
     s.save().map(|_| entry).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
-async fn delete_password(store: State<'_, Store>, id: Uuid) -> Result<(), String> {
+async fn delete_password(store: State<'_, Store>, id: String) -> Result<(), String> {
     let mut store = store.0.lock().await;
     let s = store.as_mut().ok_or("Store não carregado")?;
-    s.remove(id).map_err(|err| err.to_string())?;
+    
+    // Converter string para Uuid
+    let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
+    
+    s.remove(uuid).map_err(|err| err.to_string())?;
     s.save().map_err(|err| err.to_string())
+}
+
+// ---------- 📤 Exportação cifrada ----------
+#[tauri::command]
+async fn export_encrypted(
+    handle: tauri::AppHandle,
+    store: State<'_, Store>,
+    format: Option<String>,               // "json" (default) ou "csv"
+    file_name: Option<String>,            // opcional: nome do ficheiro
+) -> Result<String, String> {
+    let store_guard = store.0.lock().await;
+    let s = store_guard.as_ref().ok_or("Store não carregado")?;
+
+    let fmt = format.unwrap_or_else(|| "json".to_string()).to_lowercase();
+
+    // 1) serializar
+    let plain = if fmt == "csv" {
+        to_csv(&s.entries)
+    } else {
+        serde_json::to_string_pretty(&s.entries).map_err(|e| e.to_string())?
+    };
+
+    // 2) cifrar com a master key atual
+    let master = s
+        .master_key
+        .as_ref()
+        .ok_or("Master key não definida")?;
+    let encrypted_blob = encrypt(&plain, master).map_err(|e| e.to_string())?;
+
+    // 3) caminho de export: <app_data>/exports/<nome>
+    let data_dir = handle.path().app_data_dir().map_err(|_| "Sem diretório de dados")?;
+    let exports_dir = data_dir.join("exports");
+    fs::create_dir_all(&exports_dir).map_err(|e| e.to_string())?;
+
+    let stamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
+    let default_name = if fmt == "csv" {
+        format!("passwords-{}.csv.enc", stamp)
+    } else {
+        format!("passwords-{}.json.enc", stamp)
+    };
+    let fname = file_name.unwrap_or(default_name);
+    let out_path = exports_dir.join(fname);
+
+    fs::write(&out_path, encrypted_blob).map_err(|e| e.to_string())?;
+    Ok(out_path.display().to_string())
+}
+
+// utilitário simples para CSV sem dependências
+fn csv_escape(s: &str) -> String {
+    let needs_quotes = s.contains([',', '"', '\n']);
+    if needs_quotes {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+fn to_csv(entries: &[PasswordEntry]) -> String {
+    let mut out = String::from("id,service,username,password,tags,created_at,updated_at\n");
+    for e in entries {
+        out.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            e.id,
+            csv_escape(&e.service),
+            csv_escape(&e.username),
+            csv_escape(&e.password),
+            csv_escape(&e.tags.clone().unwrap_or_default()),
+            csv_escape(&e.created_at),
+            csv_escape(&e.updated_at)
+        ));
+    }
+    out
 }
 
 // ---------- 🔐 Master password setup ----------
@@ -271,9 +366,24 @@ async fn set_master_password(handle: tauri::AppHandle, password: String) -> Resu
 async fn verify_master_password(handle: tauri::AppHandle, password: String) -> Result<bool, String> {
     let data_dir = handle.path().app_data_dir().map_err(|_| "Sem diretório de dados")?;
     let hash_path = data_dir.join(MASTER_FILE);
+    
+    // Se o ficheiro não existe, criar com a password fornecida
     if !hash_path.exists() {
-        return Ok(false);
+        // Criar diretório se não existir
+        fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+        
+        // Criar hash da password
+        let salt = SaltString::generate(&mut OsRng);
+        let argon2 = Argon2::default();
+        let hash = argon2.hash_password(password.as_bytes(), &salt)
+            .map_err(|e| e.to_string())?;
+        
+        // Guardar o hash
+        fs::write(&hash_path, hash.to_string()).map_err(|e| e.to_string())?;
+        return Ok(true);
     }
+
+    // Se o ficheiro existe, verificar a password
     let saved_hash = fs::read_to_string(hash_path).map_err(|e| e.to_string())?;
     let parsed_hash = PasswordHash::new(&saved_hash).map_err(|e| e.to_string())?;
     let argon2 = Argon2::default();
@@ -330,7 +440,8 @@ fn main() {
             delete_password,
             set_master_password,
             verify_master_password,
-            generate_password
+            generate_password,
+            export_encrypted      
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar aplicação");
