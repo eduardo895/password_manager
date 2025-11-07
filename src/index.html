@@ -180,6 +180,8 @@
     }
 
 
+
+
       .password-options {
         grid-column: 1 / -1;
         display: flex;
@@ -390,28 +392,29 @@
           showFeedback("Erro ao gerar senha", true);
         }
       });
+
       window.editEntry = (id) => {
-        const entry = Array.from(document.querySelectorAll("#password-list tr"))
-          .map((row) => {
-            const cells = row.querySelectorAll("td");
-            return {
-              id,
-              service: cells[0].textContent,
-              username: cells[1].textContent,
-              password: cells[2].textContent,
-            };
-          })
-          .find((e) => e.id === id);
+      const entry = Array.from(document.querySelectorAll("#password-list tr"))
+        .map((row) => {
+          const cells = row.querySelectorAll("td");
+          return {
+            id,
+            service: cells[0].textContent,
+            username: cells[1].textContent,
+            password: cells[2].textContent,
+          };
+        })
+        .find((e) => e.id === id);
 
-        if (!entry) return;
+      if (!entry) return;
 
-        document.querySelector("#service").value = entry.service;
-        document.querySelector("#username").value = entry.username;
-        document.querySelector("#password").value = entry.password;
-        document.querySelector("#password-id").value = entry.id;
-        document.querySelector("#submit-btn").textContent = "Atualizar credencial";
-        form.dataset.editing = "true";
-      };
+      document.querySelector("#service").value = entry.service;
+      document.querySelector("#username").value = entry.username;
+      document.querySelector("#password").value = entry.password;
+      document.querySelector("#password-id").value = entry.id;
+      document.querySelector("#submit-btn").textContent = "Atualizar credencial";
+      form.dataset.editing = "true";
+    };
 
 
       form.addEventListener("submit", async (e) => {
@@ -438,6 +441,7 @@
       form.reset();
       await refreshList();
     });
+
 
       async function refreshList() {
         const entries = await invoke("list_passwords").catch(() => []);

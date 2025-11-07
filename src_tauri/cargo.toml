@@ -30,6 +30,7 @@ tauri = { version = "2", features = [] }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
+rand_core = "0.9.3"
 
 [features]
 default = ["custom-protocol"]

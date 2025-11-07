@@ -1,6 +1,6 @@
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
-use std::{fs, path::{self, PathBuf}};
+use std::{fs, path::PathBuf};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -10,8 +10,7 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use rand::rngs::OsRng;
-use rand::{Rng, RngCore};
+use rand::{rngs::OsRng, RngCore, Rng};
 use base64::{engine::general_purpose, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -265,8 +264,6 @@ async fn set_master_password(handle: tauri::AppHandle, password: String) -> Resu
     let argon2 = Argon2::default();
     let hash = argon2.hash_password(password.as_bytes(), &salt).map_err(|e| e.to_string())?;
     fs::write(data_dir.join(MASTER_FILE), hash.to_string()).map_err(|e| e.to_string())?;
-    println!("Master password criada em {:?}:",data_dir.join(MASTER_FILE) );
-
     Ok(())
 }
 
