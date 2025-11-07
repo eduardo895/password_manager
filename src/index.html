@@ -369,6 +369,26 @@
         transform: translateY(-1px);
       }
 
+      /* === Password cell === */
+      .password-cell {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .icon-btn {
+        padding: 4px 8px;
+        font-size: 0.9rem;
+        border-radius: 8px;
+        background: rgba(148, 163, 184, 0.12);
+        transition: background 0.2s ease, transform 0.1s ease;
+      }
+
+      .icon-btn:hover {
+        background: rgba(148, 163, 184, 0.24);
+        transform: translateY(-1px);
+      }
+
 
 
     </style>
@@ -420,6 +440,7 @@
         />
         <button id="clear-search" class="ghost-button" style="padding:10px 16px;">Limpar</button>
       </div>
+
 
 
       <div class="feedback" id="feedback"></div>
@@ -576,7 +597,14 @@
           <tr>
             <td>${e.service}</td>
             <td>${e.username}</td>
-            <td>${e.password}</td>
+            <td>
+            <div class="password-cell">
+              <span class="hidden-password">••••••••</span>
+              <span class="real-password" style="display:none;">${e.password}</span>
+              <button class="ghost-button icon-btn" onclick="togglePassword(this)" title="Mostrar/Ocultar">👁️</button>
+              <button class="ghost-button icon-btn" onclick="copyPassword('${e.password}', this)" title="Copiar">📋</button>
+            </div>
+            </td>
             <td>
               <div class="actions">
                 <button class="ghost-button" onclick="editEntry('${e.id}')">Editar</button>
@@ -669,6 +697,38 @@
         }
       };
 
+      window.togglePassword = (btn) => {
+        const cell = btn.closest(".password-cell");
+        const hidden = cell.querySelector(".hidden-password");
+        const real = cell.querySelector(".real-password");
+
+        const showing = real.style.display === "inline";
+        if (showing) {
+          real.style.display = "none";
+          hidden.style.display = "inline";
+          btn.textContent = "👁️";
+        } else {
+          real.style.display = "inline";
+          hidden.style.display = "none";
+          btn.textContent = "🙈";
+        }
+      };
+
+      window.copyPassword = async (password, btn) => {
+        try {
+          await navigator.clipboard.writeText(password);
+          const original = btn.textContent;
+          btn.textContent = "✅";
+          btn.style.color = "#86efac";
+          setTimeout(() => {
+            btn.textContent = original;
+            btn.style.color = "";
+          }, 1500);
+          showFeedback("Palavra-passe copiada!");
+        } catch {
+          showFeedback("Erro ao copiar", true);
+        }
+      };
 
     </script>
   </body>
