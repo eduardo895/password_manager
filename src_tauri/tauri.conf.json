@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "identifier": "com.example.passwordmanager",
+  "identifier": "com.passwordmanager.app",
   "productName": "Password Manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "build": {
     "frontendDist": "../src",
     "beforeDevCommand": "",
@@ -19,6 +19,15 @@
     ]
   },
   "bundle": {
-    "active": false
+    "active": true,
+    "targets": ["msi", "nsis"],
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "publisher": "Eduardo",
+    "copyright": "© 2025 Eduardo",
+    "shortDescription": "Gestor de palavras-passe seguro e simples.",
+    "longDescription": "Aplicação desktop desenvolvida com Tauri que permite armazenar e cifrar palavras-passe localmente com AES-256-GCM e Argon2id."
   }
 }

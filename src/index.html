@@ -7,8 +7,7 @@
     <style>
       :root {
         color-scheme: light dark;
-        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont,
-          "Segoe UI", sans-serif;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         background: linear-gradient(160deg, #1f2937, #111827);
         color: #f9fafb;
       }
@@ -16,13 +15,68 @@
       body {
         margin: 0;
         min-height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
       }
 
+      /* === 🔐 Ecrã de autenticação === */
+      #auth-screen {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        gap: 16px;
+        background: linear-gradient(160deg, #1e293b, #0f172a);
+      }
+
+      #auth-screen h2 {
+        font-size: 1.9rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+      }
+
+      #auth-message {
+        color: #94a3b8;
+        font-size: 0.95rem;
+      }
+
+      #auth-screen input {
+        width: 240px;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        background: rgba(15, 23, 42, 0.9);
+        color: #f9fafb;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      #auth-screen input:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+      }
+
+      #auth-screen button {
+        width: 240px;
+        padding: 12px;
+        border-radius: 9999px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        border: none;
+        color: #f8fafc;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      #auth-screen button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 18px rgba(99, 102, 241, 0.35);
+      }
+
+      /* === 💾 Painel principal === */
       main {
+        display: none;
         width: min(900px, 95vw);
+        margin: 40px auto;
         background: rgba(15, 23, 42, 0.9);
         border-radius: 18px;
         padding: 32px 36px 40px;
@@ -93,10 +147,63 @@
         box-shadow: 0 12px 20px rgba(99, 102, 241, 0.3);
       }
 
-      button:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        box-shadow: none;
+      /* 🎲 Secção de geração */
+      .password-input-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .password-input-group input {
+        flex: 1;
+      }
+
+      #generate-btn {
+      width: 48px;
+      height: 48px;
+      font-size: 1.6rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    #generate-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.35);
+    }
+
+
+      .password-options {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-top: -8px;
+        font-size: 0.85rem;
+        color: #cbd5f5;
+      }
+
+      .password-options label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .password-options input[type="number"] {
+        width: 60px;
+        background: rgba(15, 23, 42, 0.9);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 8px;
+        padding: 4px 6px;
+        color: inherit;
       }
 
       table {
@@ -168,98 +275,24 @@
         min-height: 1.2rem;
       }
 
-      /* --- Ajustes da secção de geração de senha --- */
-      .password-section {
-        grid-column: 1 / -1;
-      }
-
-      .password-input-group {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .password-input-group input {
-        flex: 1;
-      }
-
-      .password-input-group button {
-        background: linear-gradient(135deg, #6366f1, #8b5cf6);
-        border: none;
-        border-radius: 10px;
-        padding: 10px 14px;
-        font-size: 1rem;
-        cursor: pointer;
-      }
-
-      .password-options {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-        font-size: 0.85rem;
-        margin-top: 6px;
-        margin-bottom: 16px;
-        color: #cbd5f5;
-      }
-
-      .password-options input[type="number"] {
-        width: 60px;
-        background: rgba(15, 23, 42, 0.9);
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        border-radius: 8px;
-        padding: 4px 6px;
-        color: inherit;
-      }
-
       @media (max-width: 600px) {
-        main {
-          padding: 28px 22px;
-        }
-
-        table,
-        thead,
-        tbody,
-        th,
-        td,
-        tr {
-          display: block;
-        }
-
-        thead {
-          display: none;
-        }
-
-        tbody tr {
-          margin-bottom: 16px;
-          border-radius: 12px;
-          background: rgba(15, 23, 42, 0.8);
-        }
-
-        td {
-          padding: 12px;
-          display: flex;
-          justify-content: space-between;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-        }
-
-        td:last-child {
-          border-bottom: none;
-        }
-
-        td::before {
-          content: attr(data-label);
-          font-weight: 600;
-          color: #cbd5f5;
-          margin-right: 12px;
-        }
-
-        .actions {
-          justify-content: flex-end;
+        .password-options {
+          flex-direction: column;
+          align-items: flex-start;
         }
       }
     </style>
   </head>
   <body>
+    <!-- 🔐 Ecrã de autenticação -->
+    <div id="auth-screen">
+      <h2>🔐 Aceder ao Password Manager</h2>
+      <p id="auth-message">Introduza a sua master password</p>
+      <input type="password" id="master-password" placeholder="Master password ou PIN" />
+      <button id="auth-button">Entrar</button>
+    </div>
+
+    <!-- 💾 Ecrã principal -->
     <main>
       <h1>Gestor de Palavras-passe</h1>
       <p class="subtitle">Registe, edite e elimine credenciais com segurança.</p>
@@ -267,78 +300,74 @@
 
       <form id="password-form">
         <input type="hidden" id="password-id" />
-
-        <label>
-          Serviço
-          <input id="service" placeholder="Ex: GitHub" required />
-        </label>
-
-        <label>
-          Utilizador
-          <input id="username" placeholder="Ex: maria.silva" required />
-        </label>
-
-        <!-- 🔑 Seção de palavra-passe e geração -->
-        <div class="password-section">
-          <label>
-            Palavra-passe
-            <div class="password-input-group">
-              <input id="password" placeholder="••••••" required />
-              <button type="button" id="generate-btn" title="Gerar senha segura">
-                🎲
-              </button>
-            </div>
-          </label>
-
-          <div class="password-options">
-            <label><input type="checkbox" id="use-lowercase" checked /> Minúsculas</label>
-            <label><input type="checkbox" id="use-uppercase" checked /> Maiúsculas</label>
-            <label><input type="checkbox" id="use-numbers" checked /> Números</label>
-            <label><input type="checkbox" id="use-symbols" /> Símbolos</label>
-            <label>Tamanho: <input type="number" id="password-length" min="6" max="64" value="16" /></label>
+        <label>Serviço <input id="service" placeholder="Ex: GitHub" required /></label>
+        <label>Utilizador <input id="username" placeholder="Ex: maria.silva" required /></label>
+        <label>Palavra-passe
+          <div class="password-input-group">
+            <input id="password" placeholder="••••••" required />
+            <button type="button" id="generate-btn" title="Gerar senha segura">🎲</button>
           </div>
+        </label>
+
+        <div class="password-options">
+          <label><input type="checkbox" id="use-lowercase" checked /> Minúsculas</label>
+          <label><input type="checkbox" id="use-uppercase" checked /> Maiúsculas</label>
+          <label><input type="checkbox" id="use-numbers" checked /> Números</label>
+          <label><input type="checkbox" id="use-symbols" /> Símbolos</label>
+          <label>Tamanho: <input type="number" id="password-length" min="6" max="64" value="16" /></label>
         </div>
 
-        <div style="display: flex; align-items: flex-end">
-          <button type="submit" id="submit-btn">Guardar credencial</button>
-        </div>
+        <button type="submit" id="submit-btn">Guardar credencial</button>
       </form>
 
       <div class="feedback" id="feedback"></div>
-
       <table>
         <thead>
           <tr>
             <th>Serviço</th>
             <th>Utilizador</th>
             <th>Palavra-passe</th>
-            <th style="width: 160px">Ações</th>
+            <th>Ações</th>
           </tr>
         </thead>
         <tbody id="password-list"></tbody>
       </table>
-
-      <p class="empty-state" id="empty-state" hidden>
-        Ainda não existem credenciais registadas.
-      </p>
+      <p class="empty-state" id="empty-state" hidden>Ainda não existem credenciais registadas.</p>
     </main>
 
     <script type="module">
       import { invoke } from "https://esm.sh/@tauri-apps/api/core";
+      const authScreen = document.querySelector("#auth-screen");
+      const mainScreen = document.querySelector("main");
+      const authButton = document.querySelector("#auth-button");
+      const masterInput = document.querySelector("#master-password");
+      const authMsg = document.querySelector("#auth-message");
+
+      authButton.addEventListener("click", async () => {
+        const master = masterInput.value.trim();
+        if (!master) return;
+        try {
+          const exists = await invoke("verify_master_password", { password: master });
+          if (!exists) {
+            await invoke("set_master_password", { password: master });
+            alert("Master password criada com sucesso!");
+          }
+          await invoke("load_store", { master });
+          authScreen.style.display = "none";
+          mainScreen.style.display = "block";
+          await refreshList();
+        } catch {
+          authMsg.textContent = "❌ Master password incorreta";
+          authMsg.style.color = "#f87171";
+        }
+      });
 
       const form = document.querySelector("#password-form");
-      const passwordIdInput = document.querySelector("#password-id");
       const serviceInput = document.querySelector("#service");
       const usernameInput = document.querySelector("#username");
       const passwordInput = document.querySelector("#password");
-      const feedback = document.querySelector("#feedback");
-      const submitBtn = document.querySelector("#submit-btn");
       const listElement = document.querySelector("#password-list");
-      const emptyState = document.querySelector("#empty-state");
-
-      let isEditing = false;
-
-      // --- 🔑 Geração de senha segura ---
+      const feedback = document.querySelector("#feedback");
       const generateBtn = document.querySelector("#generate-btn");
       const useLowercase = document.querySelector("#use-lowercase");
       const useUppercase = document.querySelector("#use-uppercase");
@@ -357,115 +386,90 @@
           });
           passwordInput.value = password;
           showFeedback("Senha segura gerada!");
-        } catch (error) {
-          showFeedback(`Erro ao gerar senha: ${error}`, true);
+        } catch {
+          showFeedback("Erro ao gerar senha", true);
         }
       });
+      window.editEntry = (id) => {
+        const entry = Array.from(document.querySelectorAll("#password-list tr"))
+          .map((row) => {
+            const cells = row.querySelectorAll("td");
+            return {
+              id,
+              service: cells[0].textContent,
+              username: cells[1].textContent,
+              password: cells[2].textContent,
+            };
+          })
+          .find((e) => e.id === id);
+
+        if (!entry) return;
+
+        document.querySelector("#service").value = entry.service;
+        document.querySelector("#username").value = entry.username;
+        document.querySelector("#password").value = entry.password;
+        document.querySelector("#password-id").value = entry.id;
+        document.querySelector("#submit-btn").textContent = "Atualizar credencial";
+        form.dataset.editing = "true";
+      };
+
+
+      form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        service: serviceInput.value.trim(),
+        username: usernameInput.value.trim(),
+        password: passwordInput.value.trim(),
+      };
+
+      if (form.dataset.editing === "true") {
+        await invoke("update_password", {
+          id: document.querySelector("#password-id").value,
+          ...payload,
+        });
+        showFeedback("Credencial atualizada!");
+        form.dataset.editing = "false";
+        document.querySelector("#submit-btn").textContent = "Guardar credencial";
+      } else {
+        await invoke("add_password", payload);
+        showFeedback("Credencial registada!");
+      }
+
+      form.reset();
+      await refreshList();
+    });
 
       async function refreshList() {
-        try {
-          const entries = await invoke("list_passwords");
-          renderEntries(entries);
-        } catch (error) {
-          showFeedback(`Erro ao carregar palavras-passe: ${error}`, true);
-        }
-      }
-
-      function renderEntries(entries) {
-        listElement.innerHTML = "";
-        emptyState.hidden = entries.length !== 0;
-        for (const entry of entries) {
-          const row = document.createElement("tr");
-          row.innerHTML = `
-            <td data-label="Serviço">${entry.service}</td>
-            <td data-label="Utilizador">${entry.username}</td>
-            <td data-label="Palavra-passe">${entry.password}</td>
-            <td data-label="Ações">
+        const entries = await invoke("list_passwords").catch(() => []);
+        listElement.innerHTML = entries
+          .map(
+            (e) => `
+          <tr>
+            <td>${e.service}</td>
+            <td>${e.username}</td>
+            <td>${e.password}</td>
+            <td>
               <div class="actions">
-                <button class="ghost-button" data-action="edit">Editar</button>
-                <button class="ghost-button danger" data-action="delete">Eliminar</button>
+                <button class="ghost-button" onclick="editEntry('${e.id}')">Editar</button>
+                <button class="ghost-button danger" onclick="deleteEntry('${e.id}')">Eliminar</button>
               </div>
             </td>
-          `;
-          row
-            .querySelector('[data-action="edit"]')
-            .addEventListener("click", () => populateForm(entry));
-          row
-            .querySelector('[data-action="delete"]')
-            .addEventListener("click", () => deleteEntry(entry.id));
-          listElement.appendChild(row);
-        }
+          </tr>`
+          )
+          .join("");
       }
 
-      function populateForm(entry) {
-        isEditing = true;
-        passwordIdInput.value = entry.id;
-        serviceInput.value = entry.service;
-        usernameInput.value = entry.username;
-        passwordInput.value = entry.password;
-        submitBtn.textContent = "Atualizar credencial";
+      window.deleteEntry = async (id) => {
+        if (!confirm("Eliminar esta credencial?")) return;
+        await invoke("delete_password", { id });
+        await refreshList();
+      };
+
+      function showFeedback(msg, err = false) {
+        feedback.textContent = msg;
+        feedback.style.color = err ? "#f87171" : "#86efac";
+        setTimeout(() => (feedback.textContent = ""), 3000);
       }
-
-      function resetForm() {
-        isEditing = false;
-        passwordIdInput.value = "";
-        form.reset();
-        submitBtn.textContent = "Guardar credencial";
-      }
-
-      function showFeedback(message, isError = false) {
-        feedback.textContent = message;
-        feedback.style.color = isError ? "#f87171" : "#86efac";
-        setTimeout(() => (feedback.textContent = ""), 3500);
-      }
-
-      async function deleteEntry(id) {
-        if (!confirm("Tem a certeza de que deseja eliminar esta credencial?")) return;
-        submitBtn.disabled = true;
-        try {
-          await invoke("delete_password", { id });
-          showFeedback("Credencial eliminada.");
-          await refreshList();
-        } catch (error) {
-          showFeedback(`Erro ao eliminar: ${error}`, true);
-        } finally {
-          submitBtn.disabled = false;
-        }
-      }
-
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        const payload = {
-          service: serviceInput.value.trim(),
-          username: usernameInput.value.trim(),
-          password: passwordInput.value.trim(),
-        };
-        if (!payload.service || !payload.username || !payload.password) {
-          showFeedback("Preencha todos os campos", true);
-          return;
-        }
-        submitBtn.disabled = true;
-        try {
-          if (isEditing) {
-            await invoke("update_password", {
-              id: passwordIdInput.value,
-              ...payload,
-            });
-            showFeedback("Credencial atualizada com sucesso!");
-          } else {
-            await invoke("add_password", payload);
-            showFeedback("Credencial registada com sucesso!");
-          }
-          resetForm();
-          await refreshList();
-        } catch (error) {
-          showFeedback(`Erro ao guardar: ${error}`, true);
-        } finally {
-          submitBtn.disabled = false;
-        }
-      });
-
-      refreshList();
     </script>
   </body>
 </html>

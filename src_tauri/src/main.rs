@@ -1,24 +1,26 @@
 #![cfg_attr(all(not(debug_assertions), target_os = "windows"), windows_subsystem = "windows")]
 
-use std::{fs, path::PathBuf};
-
+use std::{fs, path::{self, PathBuf}};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use anyhow::{anyhow, Context, Result};
-use argon2::Argon2;
+use anyhow::{anyhow, Result};
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
+use rand::rngs::OsRng;
+use rand::{Rng, RngCore};
 use base64::{engine::general_purpose, Engine as _};
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use tauri::{async_runtime::Mutex, Manager, State};
+use tauri::{Manager, State};
 use thiserror::Error;
 use uuid::Uuid;
 use zeroize::Zeroize;
 
-// ---------------------------
-// 🔒 TIPOS E ERROS
-// ---------------------------
+const MASTER_FILE: &str = "master.hash";
+
 #[derive(Debug, Error)]
 pub enum PasswordError {
     #[error("application data directory is unavailable")]
@@ -52,18 +54,14 @@ impl PasswordEntry {
     }
 }
 
-// ---------------------------
-// 🧠 ESTRUTURA DE ARMAZENAMENTO
-// ---------------------------
 #[derive(Default)]
 struct PasswordStore {
     entries: Vec<PasswordEntry>,
     path: Option<PathBuf>,
+    master_key: Option<String>,
 }
 
-// ---------------------------
-// 🔐 CRIPTOGRAFIA AES-256-GCM
-// ---------------------------
+// ---------- 🔐 Derivação e Criptografia ----------
 fn derive_key(passphrase: &str, salt: &[u8]) -> Result<[u8; 32]> {
     let argon2 = Argon2::default();
     let mut key = [0u8; 32];
@@ -121,28 +119,22 @@ fn decrypt(serialized: &str, passphrase: &str) -> Result<String> {
 
     Ok(String::from_utf8(plaintext)?)
 }
+// -------------------------------------------------
 
-// ---------------------------
-// 💾 ARMAZENAMENTO LOCAL
-// ---------------------------
 impl PasswordStore {
-    fn load(handle: &tauri::AppHandle) -> Result<Self, PasswordError> {
+    fn load(handle: &tauri::AppHandle, master: &str) -> Result<Self, PasswordError> {
         let mut store = PasswordStore::default();
-
-        // ✅ Em Tauri 2, app_data_dir() já retorna Result<PathBuf, tauri::Error>
         let data_dir = handle
             .path()
             .app_data_dir()
             .map_err(|_| PasswordError::AppDirUnavailable)?;
         let path = data_dir.join("passwords.enc");
         store.path = Some(path.clone());
-
-        // ⚙️ Hardcoded temporário (vai virar master password depois)
-        let passphrase = "trustsec_demo_key";
+        store.master_key = Some(master.to_string());
 
         if let Ok(data) = fs::read_to_string(&path) {
             let decrypted =
-                decrypt(&data, passphrase).map_err(|e| PasswordError::Crypto(e.to_string()))?;
+                decrypt(&data, master).map_err(|e| PasswordError::Crypto(e.to_string()))?;
             let entries: Vec<PasswordEntry> = serde_json::from_str(&decrypted)?;
             store.entries = entries;
         }
@@ -156,9 +148,12 @@ impl PasswordStore {
                 fs::create_dir_all(parent)?;
             }
             let json = serde_json::to_string_pretty(&self.entries)?;
-            let passphrase = "trustsec_demo_key";
+            let master = self
+                .master_key
+                .clone()
+                .ok_or_else(|| PasswordError::Crypto("Master key não definida".into()))?;
             let encrypted =
-                encrypt(&json, passphrase).map_err(|e| PasswordError::Crypto(e.to_string()))?;
+                encrypt(&json, &master).map_err(|e| PasswordError::Crypto(e.to_string()))?;
             fs::write(path, encrypted)?;
         }
         Ok(())
@@ -186,9 +181,11 @@ impl PasswordStore {
             .iter_mut()
             .find(|item| item.id == id)
             .ok_or(PasswordError::NotFound)?;
+
         entry.service = service;
         entry.username = username;
         entry.password = password;
+
         Ok(entry.clone())
     }
 
@@ -202,15 +199,24 @@ impl PasswordStore {
     }
 }
 
-// ---------------------------
-// 🔧 COMANDOS TAURI
-// ---------------------------
-struct Store(Mutex<PasswordStore>);
+struct Store(tauri::async_runtime::Mutex<Option<PasswordStore>>);
+
+#[tauri::command]
+async fn load_store(handle: tauri::AppHandle, store: State<'_, Store>, master: String) -> Result<(), String> {
+    let new_store = PasswordStore::load(&handle, &master).map_err(|e| e.to_string())?;
+    let mut locked = store.0.lock().await;
+    *locked = Some(new_store);
+    Ok(())
+}
 
 #[tauri::command]
 async fn list_passwords(store: State<'_, Store>) -> Result<Vec<PasswordEntry>, String> {
     let store = store.0.lock().await;
-    Ok(store.list())
+    if let Some(ref s) = *store {
+        Ok(s.list())
+    } else {
+        Err("Store não carregado".into())
+    }
 }
 
 #[tauri::command]
@@ -221,8 +227,9 @@ async fn add_password(
     password: String,
 ) -> Result<PasswordEntry, String> {
     let mut store = store.0.lock().await;
-    let entry = store.add(service, username, password);
-    store.save().map(|_| entry).map_err(|err| err.to_string())
+    let s = store.as_mut().ok_or("Store não carregado")?;
+    let entry = s.add(service, username, password);
+    s.save().map(|_| entry).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
@@ -234,19 +241,49 @@ async fn update_password(
     password: String,
 ) -> Result<PasswordEntry, String> {
     let mut store = store.0.lock().await;
-    let entry = store
+    let s = store.as_mut().ok_or("Store não carregado")?;
+    let entry = s
         .update(id, service, username, password)
         .map_err(|err| err.to_string())?;
-    store.save().map(|_| entry).map_err(|err| err.to_string())
+    s.save().map(|_| entry).map_err(|err| err.to_string())
 }
 
 #[tauri::command]
 async fn delete_password(store: State<'_, Store>, id: Uuid) -> Result<(), String> {
     let mut store = store.0.lock().await;
-    store.remove(id).map_err(|err| err.to_string())?;
-    store.save().map_err(|err| err.to_string())
+    let s = store.as_mut().ok_or("Store não carregado")?;
+    s.remove(id).map_err(|err| err.to_string())?;
+    s.save().map_err(|err| err.to_string())
 }
 
+// ---------- 🔐 Master password setup ----------
+#[tauri::command]
+async fn set_master_password(handle: tauri::AppHandle, password: String) -> Result<(), String> {
+    let data_dir = handle.path().app_data_dir().map_err(|_| "Sem diretório de dados")?;
+    fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hash = argon2.hash_password(password.as_bytes(), &salt).map_err(|e| e.to_string())?;
+    fs::write(data_dir.join(MASTER_FILE), hash.to_string()).map_err(|e| e.to_string())?;
+    println!("Master password criada em {:?}:",data_dir.join(MASTER_FILE) );
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn verify_master_password(handle: tauri::AppHandle, password: String) -> Result<bool, String> {
+    let data_dir = handle.path().app_data_dir().map_err(|_| "Sem diretório de dados")?;
+    let hash_path = data_dir.join(MASTER_FILE);
+    if !hash_path.exists() {
+        return Ok(false);
+    }
+    let saved_hash = fs::read_to_string(hash_path).map_err(|e| e.to_string())?;
+    let parsed_hash = PasswordHash::new(&saved_hash).map_err(|e| e.to_string())?;
+    let argon2 = Argon2::default();
+    Ok(argon2.verify_password(password.as_bytes(), &parsed_hash).is_ok())
+}
+
+// ---------- 🎲 Gerador de senhas ----------
 #[tauri::command]
 async fn generate_password(
     length: usize,
@@ -255,10 +292,7 @@ async fn generate_password(
     use_numbers: bool,
     use_symbols: bool,
 ) -> Result<String, String> {
-    use rand::Rng;
-
     let mut charset = String::new();
-
     if use_lowercase {
         charset.push_str("abcdefghijklmnopqrstuvwxyz");
     }
@@ -273,7 +307,7 @@ async fn generate_password(
     }
 
     if charset.is_empty() {
-        return Err("Nenhum tipo de caractere selecionado".to_string());
+        return Err("Selecione pelo menos um tipo de caractere".into());
     }
 
     let mut rng = rand::thread_rng();
@@ -287,28 +321,18 @@ async fn generate_password(
     Ok(password)
 }
 
-
-// ---------------------------
-// 🚀 PONTO DE ENTRADA
-// ---------------------------
+// ---------- 🚀 Main ----------
 fn main() {
     tauri::Builder::default()
-        // Plugins (Tauri 2.x)
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_dialog::init())
-        // Inicializa o store ao iniciar a app
-        .setup(|app| {
-            let store = PasswordStore::load(&app.handle())?;
-            app.manage(Store(Mutex::new(store)));
-            Ok(())
-        })
-        // Liga os comandos da API ao frontend
+        .manage(Store(tauri::async_runtime::Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
+            load_store,
             list_passwords,
             add_password,
             update_password,
             delete_password,
+            set_master_password,
+            verify_master_password,
             generate_password
         ])
         .run(tauri::generate_context!())
