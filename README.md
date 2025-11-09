@@ -105,8 +105,8 @@ Próximas funcionalidades planeadas:
 - [x] 🔐 Criptografia AES para o ficheiro `passwords.json`
 - [x] 🔑 Geração de senhas seguras com personalização
 - [x] 🧍 Autenticação local (PIN / master password)
-- [ ] 🔍 Barra de pesquisa e filtragem de credenciais
-- [ ] 📦 Exportação e importação de dados (JSON / CSV)
+- [x] 🔍 Barra de pesquisa e filtragem de credenciais
+- [x] 📦 Exportação e importação de dados (JSON / CSV)
 - [ ] 🌐 Sincronização opcional com armazenamento remoto
 - [ ] 🧱 Interface em Vue.js ou React (migrar de HTML estático)
 - [ ] 🧪 Testes automatizados Rust (unitários e integração)
