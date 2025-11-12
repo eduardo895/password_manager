@@ -410,6 +410,17 @@
         <button id="export-csv" class="ghost-button">📤 Exportar CSV</button>
       </div>
 
+      <!-- 🧩 Auditoria e Backup -->
+      <div style="display:flex;gap:8px;justify-content:flex-start;margin-bottom:16px;">
+        <button id="analyze-btn" class="ghost-button">🧩 Auditoria de segurança</button>
+        <button id="backup-btn" class="ghost-button">💾 Fazer backup</button>
+      </div>
+
+      <!-- 🔍 Resultados da auditoria -->
+      <div id="audit-result">
+        <p><i>Executa uma auditoria para verificar a força e duplicação das senhas.</i></p>
+      </div>
+
       <form id="password-form">
         <input type="hidden" id="password-id" />
         <label>Serviço <input id="service" placeholder="Ex: GitHub" required /></label>
@@ -660,6 +671,35 @@
             }
           }
         });
+
+        document.querySelector("#analyze-btn").addEventListener("click", async () => {
+        try {
+          const result = await invoke("analyze_passwords");
+          const { total, weak, duplicates, strength_score_avg } = result;
+          document.querySelector("#audit-result").innerHTML = `
+            <p>🔐 Total de credenciais: <b>${total}</b></p>
+            <p>⚠️ Senhas fracas: <b>${weak}</b></p>
+            <p>♻️ Duplicadas: <b>${duplicates}</b></p>
+            <p>💪 Força média: <b>${strength_score_avg}/5</b></p>
+          `;
+          showFeedback("Auditoria concluída!");
+        } catch (err) {
+          console.error("Erro na auditoria:", err);
+          showFeedback("Erro na auditoria de segurança", true);
+        }
+      });
+
+      document.querySelector("#backup-btn").addEventListener("click", async () => {
+        try {
+          const path = await invoke("create_backup");
+          showFeedback(`Backup criado: ${path}`);
+        } catch (err) {
+          console.error(err);
+          showFeedback("Erro ao criar backup", true);
+        }
+      });
+
+
 
 
       // SUBMIT

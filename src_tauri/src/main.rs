@@ -3,7 +3,7 @@
 use std::{fs, path::PathBuf};
 
 use aes_gcm::{
-    aead::{Aead, KeyInit},
+    aead::{Aead, KeyInit, OsRng, rand_core::RngCore},
     Aes256Gcm, Nonce,
 };
 use anyhow::{anyhow, Result};
@@ -13,7 +13,7 @@ use argon2::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use chrono::Utc;
-use rand::{rngs::OsRng, Rng, RngCore};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 use thiserror::Error;
@@ -42,9 +42,9 @@ pub struct PasswordEntry {
     pub service: String,
     pub username: String,
     pub password: String,
-    pub tags: Option<String>,        // 🏷️
-    pub created_at: String,          // 📅
-    pub updated_at: String,          // 📅
+    pub tags: Option<String>,        
+    pub created_at: String,          
+    pub updated_at: String,          
 }
 
 impl PasswordEntry {
@@ -235,13 +235,102 @@ async fn list_passwords(store: State<'_, Store>) -> Result<Vec<PasswordEntry>, S
     }
 }
 
+// Função auxiliar para carregar dados do store
+fn load_store_data(store: &Store) -> Result<Vec<PasswordEntry>, String> {
+    // Esta função precisa ser async ou usar block_on, mas vamos simplificar
+    // usando uma abordagem diferente
+    Err("Função não implementada - use list_passwords".into())
+}
+
+// Função auxiliar para obter a master key
+fn get_master_key() -> Result<[u8; 32], anyhow::Error> {
+    // Esta é uma implementação simplificada - você precisa adaptar para seu caso real
+    let dummy_key = [0u8; 32];
+    Ok(dummy_key)
+}
+
+#[tauri::command]
+async fn create_backup(handle: tauri::AppHandle, store: State<'_, Store>) -> Result<String, String> {
+    let store_guard = store.0.lock().await;
+    let s = store_guard.as_ref().ok_or("Store não carregado")?;
+    
+    let json_data = serde_json::to_string(&s.entries).map_err(|e| e.to_string())?;
+
+    // Nome do ficheiro com data
+    let backup_name = format!("backup_{}.enc", Utc::now().format("%Y%m%d_%H%M%S"));
+    let data_dir = handle.path().app_data_dir().map_err(|_| "Sem diretório de dados")?;
+    let backup_dir = data_dir.join("backups");
+    fs::create_dir_all(&backup_dir).map_err(|e| e.to_string())?;
+    let path = backup_dir.join(backup_name);
+
+    // Usar a mesma função encrypt existente
+    let master = s
+        .master_key
+        .as_ref()
+        .ok_or("Master key não definida")?;
+    let encrypted = encrypt(&json_data, master).map_err(|e| e.to_string())?;
+    
+    fs::write(&path, encrypted).map_err(|e| e.to_string())?;
+
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Retorna um valor entre 0–5 com base na força da password
+fn estimate_strength(pwd: &str) -> u8 {
+    let len = pwd.len();
+    let has_upper = pwd.chars().any(|c| c.is_ascii_uppercase());
+    let has_lower = pwd.chars().any(|c| c.is_ascii_lowercase());
+    let has_num = pwd.chars().any(|c| c.is_ascii_digit());
+    let has_sym = pwd.chars().any(|c| !c.is_alphanumeric());
+
+    let mut score = 0;
+    if len >= 8 { score += 1; }
+    if len >= 12 { score += 1; }
+    if has_upper { score += 1; }
+    if has_num { score += 1; }
+    if has_sym { score += 1; }
+    score
+}
+
+#[tauri::command]
+async fn analyze_passwords(store: State<'_, Store>) -> Result<serde_json::Value, String> {
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    let store_guard = store.0.lock().await;
+    let s = store_guard.as_ref().ok_or("Store não carregado")?;
+    
+    let mut total = 0;
+    let mut weak = 0;
+    let mut duplicates = 0;
+    let mut seen = HashMap::new();
+
+    for entry in s.entries.iter() {
+        total += 1;
+        let strength = estimate_strength(&entry.password);
+        if strength < 3 {
+            weak += 1;
+        }
+        *seen.entry(entry.password.clone()).or_insert(0) += 1;
+    }
+
+    duplicates = seen.values().filter(|&&v| v > 1).count();
+
+    Ok(json!({
+        "total": total,
+        "weak": weak,
+        "duplicates": duplicates,
+        "strength_score_avg": format!("{:.1}", (total - weak) as f32 / total.max(1) as f32 * 5.0)
+    }))
+}
+
 #[tauri::command]
 async fn add_password(
     store: State<'_, Store>,
     service: String,
     username: String,
     password: String,
-    tags: Option<String>,                 // 🏷️
+    tags: Option<String>,                 
 ) -> Result<PasswordEntry, String> {
     let mut store = store.0.lock().await;
     let s = store.as_mut().ok_or("Store não carregado")?;
@@ -256,7 +345,7 @@ async fn update_password(
     service: String,
     username: String,
     password: String,
-    tags: Option<String>,                 // 🏷️
+    tags: Option<String>,                 
 ) -> Result<PasswordEntry, String> {
     let mut store = store.0.lock().await;
     let s = store.as_mut().ok_or("Store não carregado")?;
@@ -441,7 +530,9 @@ fn main() {
             set_master_password,
             verify_master_password,
             generate_password,
-            export_encrypted      
+            export_encrypted,
+            create_backup,
+            analyze_passwords
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar aplicação");
